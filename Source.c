@@ -2,16 +2,86 @@
 #pragma warning(disable : 4996)
 #include <windows.h>
 #include <locale.h>
+#include <string.h>
 
 #define INV_LEN	10
+#define MAX_ITEMS    10
+#define MAX_NAME_LEN 32
+char items[INV_LEN][20] = {
+		 "Пусто", "Дерево", "Камень", "Семена", "Лейка", "Ведро", "Удобрение", "Корзина", "Лейка", "Ведро"
+};
+
+void Your_Name() {
+	int er_inp_flag = 1;
+	while (er_inp_flag == 1) {
+		printf("Как Вас зовут?\n");
+		char user_name[33] = { 0 };
+		int res = scanf("%32s", user_name);
+		int c = getchar();
+		if (res != 1) {
+			printf("Ошибка ввода!\n");
+			er_inp_flag = 1;
+			int c2;
+			while ((c = getchar()) != '\n' && c != EOF) {}; // очищаем входной буфер
+		}
+		else if ((c != '\n') && (c != EOF) && (c != ' ') && (c != '\t')) {
+			printf("Ошибка ввода! Имя должно содержать не больше 32 символов!\n");
+			er_inp_flag = 1;
+			int c2;
+			while ((c = getchar()) != '\n' && c != EOF) {}; // очищаем входной буфер
+		}
+		else {
+			printf("Здравствуйте, %s!\n", user_name);
+			er_inp_flag = 0;
+			return 0;
+		}
+	}
+}
+
+
+
+char item_names[MAX_ITEMS][MAX_NAME_LEN];
+int  item_count = 0;
+
+//static const char* default_names[MAX_ITEMS] = {
+//	"Empty", "Cat", "Dog", "Fish", "Rabbit",
+//	"Monkey", "Fox", "Hen", "Bug", "Lion"
+//};
+
+void fill_defaults(void) {
+	for (int i = 0; i < MAX_ITEMS; i++) {
+		strncpy(item_names[i], items[i], MAX_NAME_LEN - 1);
+		item_names[i][MAX_NAME_LEN - 1] = '\0';   // гарантируем терминатор
+	}
+	item_count = MAX_ITEMS;
+}
+
+void read_items(void) {
+	FILE* fp = fopen("items22.txt", "r");
+	if (!fp) {
+		printf("Ошибка: файл инвентаря не найден. Инвентарь будет заполнен по умолчанию.\n");
+		fill_defaults();
+		return 0;
+	}
+
+	int n = 0;
+	while (n < MAX_ITEMS && fgets(item_names[n], MAX_NAME_LEN, fp)) {
+		item_names[n][strcspn(item_names[n], "\n")] = '\0';
+		n++;
+	}
+	item_count = n;
+	fclose(fp);
+}
 
 
 int main(void)
 
 {
+	// имя, введённое пользователем на русском, отображается корректно, только если все 3 выключены (?)
 	SetConsoleCP(65001);
 	SetConsoleOutputCP(65001);
 	setlocale(LC_ALL, ".UTF-8");
+
 	// ids:
 	// 0 - пусто
 	// 1 - дерево
@@ -27,9 +97,7 @@ int main(void)
 	int current_day = 1;
 	int current_hour = 8;
 	int inventory[INV_LEN] = { 0 };
-	char items[INV_LEN][20] = {
-		 "Пусто", "Дерево", "Камень", "Семена", "Лейка", "Ведро", "Удобрение", "Корзина", "Лейка", "Ведро"
-	};
+	
 	int items2[INV_LEN] = {
 		0, 1, 2, 3, 4, 8, 5, 6, 7, 8
 	};
@@ -42,6 +110,10 @@ int main(void)
 
 	//for (int i = 0; i < INV_LEN; ++i)
 		//printf("%d ", inventory[i]);
+	Your_Name(); // узнаём имя пользователя
+	read_items(); // создаём инвентарь
+	for (int i = 0; i < item_count; i++)
+		printf("%s\n", item_names[i]);
 	int iters = 1;
 	while (iters == 1) {
 		printf("0 - Выход\n"
