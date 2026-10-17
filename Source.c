@@ -7,33 +7,30 @@
 #define INV_LEN	10
 #define MAX_ITEMS    10
 #define MAX_NAME_LEN 32
-char items[INV_LEN][20] = {
-		 "Пусто", "Дерево", "Камень", "Семена", "Лейка", "Ведро", "Удобрение", "Корзина", "Лейка", "Ведро"
+char user_name[MAX_NAME_LEN] = { 0 };
+char items[MAX_ITEMS][MAX_NAME_LEN] = {
+		 "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка", "5 Ведро", "6 Удобрение", "7 Корзина", "8 Лейка", "9 Ведро"
 };
 
-void Your_Name() {
+void Your_Name(void) {
 	int er_inp_flag = 1;
 	while (er_inp_flag == 1) {
 		printf("Как Вас зовут?\n");
-		char user_name[33] = { 0 };
-		int res = scanf("%32s", user_name);
+
+		int res = scanf("%32s", user_name);   // пишем сразу в глобальный буфер
 		int c = getchar();
+
 		if (res != 1) {
 			printf("Ошибка ввода!\n");
-			er_inp_flag = 1;
-			int c2;
-			while ((c = getchar()) != '\n' && c != EOF) {}; // очищаем входной буфер
+			while ((c = getchar()) != '\n' && c != EOF) {}
 		}
-		else if ((c != '\n') && (c != EOF) && (c != ' ') && (c != '\t')) {
+		else if (c != '\n' && c != EOF && c != ' ' && c != '\t') {
 			printf("Ошибка ввода! Имя должно содержать не больше 32 символов!\n");
-			er_inp_flag = 1;
-			int c2;
-			while ((c = getchar()) != '\n' && c != EOF) {}; // очищаем входной буфер
+			while ((c = getchar()) != '\n' && c != EOF) {}
 		}
 		else {
 			printf("Здравствуйте, %s!\n", user_name);
 			er_inp_flag = 0;
-			return 0;
 		}
 	}
 }
@@ -43,12 +40,7 @@ void Your_Name() {
 char item_names[MAX_ITEMS][MAX_NAME_LEN];
 int  item_count = 0;
 
-//static const char* default_names[MAX_ITEMS] = {
-//	"Empty", "Cat", "Dog", "Fish", "Rabbit",
-//	"Monkey", "Fox", "Hen", "Bug", "Lion"
-//};
-
-void fill_defaults(void) {
+void fill_defaults() {
 	for (int i = 0; i < MAX_ITEMS; i++) {
 		strncpy(item_names[i], items[i], MAX_NAME_LEN - 1);
 		item_names[i][MAX_NAME_LEN - 1] = '\0';   // гарантируем терминатор
@@ -56,13 +48,14 @@ void fill_defaults(void) {
 	item_count = MAX_ITEMS;
 }
 
-void read_items(void) {
-	FILE* fp = fopen("items22.txt", "r");
+void read_items() {
+	FILE* fp = fopen("items.txt", "r");
 	if (!fp) {
 		printf("Ошибка: файл инвентаря не найден. Инвентарь будет заполнен по умолчанию.\n");
 		fill_defaults();
 		return 0;
 	}
+
 
 	int n = 0;
 	while (n < MAX_ITEMS && fgets(item_names[n], MAX_NAME_LEN, fp)) {
@@ -82,18 +75,6 @@ int main(void)
 	SetConsoleOutputCP(65001);
 	setlocale(LC_ALL, ".UTF-8");
 
-	// ids:
-	// 0 - пусто
-	// 1 - дерево
-	// 2- камень
-	// 3 - семена
-	// 4- грабли
-	// 5 - лопата
-	// 6 - удобрение
-	// 7 - ведро
-	// 8 - лейка
-	// 9 - лейка
-
 	int current_day = 1;
 	int current_hour = 8;
 	int inventory[INV_LEN] = { 0 };
@@ -110,7 +91,7 @@ int main(void)
 
 	//for (int i = 0; i < INV_LEN; ++i)
 		//printf("%d ", inventory[i]);
-	Your_Name(); // узнаём имя пользователя
+	Your_Name();// узнаём имя пользователя
 	read_items(); // создаём инвентарь
 	for (int i = 0; i < item_count; i++)
 		printf("%s\n", item_names[i]);
@@ -122,15 +103,20 @@ int main(void)
 			"3 - Посмотреть инвентарь\n"
 			"4 - Положить предмет в слот\n"
 			"5 - Выбросить предмет\n"
-			"6 - Уникальные находки\n");
+			"6 - Уникальные находки\n"
+			"7 - Поиск предмета в рюкзаке по названию\n"
+			"8 - Записать состояние в дневник фермера\n"
+			"9 - Расшифровать старые записи\n");
 
 
 		int us_inp;
 
 		// проверка на дурачка
-		if ((scanf_s("%d", &us_inp) != 1) || (us_inp > 6) || (us_inp < 0)) {
-			printf("Ошибка ввода");
-			// почему если ввести не букву, а неподходящее число, программа зависает?
+		if ((scanf_s("%d", &us_inp) != 1) || (us_inp > 9) || (us_inp < 0)) {
+			printf("Ошибка ввода, попробуйте ещё раз!\n");
+			int c;
+			while ((c = getchar()) != '\n' && c != EOF) {}
+			continue;
 			//scanf_s("%*s"); // чистим буфер потока ввода
 			return 0;
 		}
@@ -158,7 +144,7 @@ int main(void)
 			printf("3 - Посмотреть инвентарь\n");
 			for (int i = 0; i < 10; i++)
 			{
-				printf("Слот %d: [%d] (%s)\n", i, inventory[i], items[i]);
+				printf("Слот %d: [%d] (%s)\n", i, inventory[i], items[i] + 2); // сдвигаем указатель на 2, чтобы убрать нумерацию id
 			}
 			printf("\n");
 			break;
@@ -183,37 +169,55 @@ int main(void)
 			break;
 		case 6:
 			printf("6 - Уникальные находки\n");
-			//	for (int i = 0; i < 10; i++)
-			//	{
-			//		printf("%s ", items[i]);
-			//	}
-			//	printf("\n");
 			for (int i = 0; i < 10; i++) {
 				if (inventory[i] == 0) continue;
 				int flag = 1;
 				int cnt = 1;
 				for (int j = 0; j < 10; j++) {
 					if ((i != j) && (items2[i] == items2[j])) {
-					//if ((i != j) && (strcmp(items[i], items[j]) == 0)) {
-					//	flag = 0;
 						cnt += 1;
 						printf("[%d] не уникален, их [%d]\n", items2[i], cnt);
 						break;// Найден дубликат
-					}
-					//else if (items[i] != items[j]) {
-/*					else if (items2[i] != items2[j]) {
-						
-						break;
-					}*/
-					
+					}					
 				}
 				if (cnt == 1) {
 					printf("[%d] уникален\n", items2[i]);
 					
 				}
 			}
+			break;
+		case 7:
+			printf("7 - Поиск предмета в рюкзаке по названию\n");
+			break;
+		case 8: {
+			printf("Введите запись: ");
 
+			char user_routine[256];
+			int c;
+			while ((c = getchar()) != '\n' && c != EOF) {}
+			if (!fgets(user_routine, sizeof user_routine, stdin)) break;
+			user_routine[strcspn(user_routine, "\n")] = '\0';
 
+			FILE* fp = fopen("diary.txt", "a");
+			if (!fp) { printf("Ошибка открытия файла.\n"); break; }
+
+			fprintf(fp, "Фермер: %s\nТекущее время: День %d, %0d:00\nСписок предметов в инвентаре:\n", user_name, current_day, current_hour);
+			for (int i = 0; i < 10; i++)
+			{
+				fprintf(fp, "%s ", items[i] + 2); // сдвигаем указатель на 2, чтобы убрать нумерацию id
+			}
+			fprintf(fp, "\nЗаметка:\n%s\n", user_routine);
+			for (int i = 0; i < 68; i++)
+			{
+				fprintf(fp, "-");
+			}
+			fprintf(fp, "\n");
+			fclose(fp);
+			printf("Запись сохранена.\n");
+			break;
+		}
+		case 9:
+			printf("9 - Расшифровать старые записи\n");
 			break;
 		}
 	}
