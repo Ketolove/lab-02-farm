@@ -10,7 +10,7 @@
 #define MAX_NAME_LEN 32
 char user_name[MAX_NAME_LEN] = { 0 };
 char items[MAX_ITEMS][MAX_NAME_LEN] = {
-		 "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка", "5 Ведро", "6 Удобрение", "7 Корзина", "8 Грабли", "9 Ведро"
+		 "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка", "5 Ведро", "6 Удобрение", "7 Корзина", "8 Грабли", "9 Лопата"
 };
 
 void Your_Name(void) {
@@ -18,7 +18,7 @@ void Your_Name(void) {
 	while (er_inp_flag == 1) {
 		printf("Как Вас зовут?\n");
 
-		int res = scanf("%32s", user_name);   // пишем сразу в глобальный буфер
+		int res = scanf("%31s", user_name);   // пишем сразу в глобальный буфер
 		int c = getchar();
 
 		if (res != 1) {
@@ -39,7 +39,6 @@ void Your_Name(void) {
 
 
 char item_names[MAX_ITEMS][MAX_NAME_LEN];
-//char supplies[MAX_ITEMS][MAX_NAME_LEN];
 char** supplies_names = NULL;   // уникальные имена
 int* supplies_totals = NULL;   // суммарные количества
 int supplies_count = 0;
@@ -48,16 +47,119 @@ int current_day = 1;
 int current_hour = 8;
 int inventory[INV_LEN] = { 0 };
 
+void show_time(void) {
+	printf("Текущее время: День %d, %0d:00\n", current_day, current_hour);
+	return;
+}
 
-void fill_defaults() {
+void work(void) {
+	int work_hours;
+	printf("Сколько часов работать?\n");
+	scanf_s("%d", &work_hours);
+	current_hour = (current_hour + work_hours) % 24;
+	current_day = current_day + (current_hour + work_hours) / 24;
+	printf("Текущее время: День %d, %0d:00\n", current_day, current_hour);
+	return;
+}
+
+void show_inventory(void) {
+	for (int i = 0; i < INV_LEN; i++) {
+		int id = inventory[i];                 // ID предмета в слоте i
+		printf("Слот %d: [%d] - %s\n",
+			i,
+			id,
+			item_names[id] + 2);            // +2 — убираем "N " из каталога
+	}
+	return;
+}
+
+void put_item(void) {
+	int num_slot, item_id;
+	printf("Введите номер слота (от 0 до %d): ", INV_LEN - 1);
+	if (scanf_s("%d", &num_slot) != 1) {
+		printf("Ошибка ввода!\n");
+		int c;
+		while ((c = getchar()) != '\n' && c != EOF) {}
+		return;
+	}
+	printf("Введите ID предмета: ");
+	if (scanf_s("%d", &item_id) != 1) {
+		printf("Ошибка ввода!\n");
+		int c;
+		while ((c = getchar()) != '\n' && c != EOF) {}
+		return;
+	}
+
+	if (num_slot < 0 || num_slot >= INV_LEN) {
+		printf("Ошибка: нет такого слота! (допустимо 0..%d)\n", INV_LEN - 1);
+		return;
+	}
+	if (item_id < 0 || item_id >= MAX_ITEMS) {
+		printf("Ошибка: нет такого ID! (допустимо 0..%d)\n", MAX_ITEMS - 1);
+		return;
+	}
+
+	inventory[num_slot] = item_id;
+	printf("В слот %d записан предмет [%d] (%s)\n",
+		num_slot, item_id, item_names[item_id] + 2);
+}
+
+void clean_slot(void) {
+	int num_slot_null;
+	printf("Введите номер слота: ");
+	if (scanf_s("%d", &num_slot_null) != 1) {
+		printf("Ошибка ввода!\n");
+		int c;
+		while ((c = getchar()) != '\n' && c != EOF) {}
+		return;
+	}
+	if (num_slot_null < 0 || num_slot_null >= INV_LEN) {
+		printf("Ошибка: нет такого слота! (допустимо 0..%d)\n", INV_LEN - 1);
+		return;
+	}
+	inventory[num_slot_null] = 0;
+	printf("Слот %d очищен\n", num_slot_null);
+	return;
+}
+
+void show_uniques(void) {
+	// Шаг 1: вывести текущий инвентарь
+	for (int i = 0; i < INV_LEN; i++) {
+		int id = inventory[i];
+		printf("Слот %d: [%d] - %s\n", i, id, item_names[id] + 2);
+	}
+	printf("\n");
+
+	// Шаг 2: для каждого ID посчитать повторы среди непустых слотов
+	int any = 0;
+	for (int id = 1; id < item_count; id++) {          // 0 = "Пусто" пропускаем
+		int cnt = 0;
+		for (int slot = 0; slot < INV_LEN; slot++) {
+			if (inventory[slot] == id) cnt++;
+		}
+		if (cnt == 0) continue;                        // этого ID в инвентаре нет
+		any = 1;
+		if (cnt == 1)
+			printf("ID %d (%s) - уникален\n", id, item_names[id] + 2);
+		else
+			printf("ID %d (%s) - не уникален, лежит в %d слотах\n",
+				id, item_names[id] + 2, cnt);
+	}
+
+	if (!any) printf("В инвентаре нет предметов.\n");
+	return;
+}
+
+void fill_defaults(void) {
 	for (int i = 0; i < MAX_ITEMS; i++) {
 		strncpy(item_names[i], items[i], MAX_NAME_LEN - 1);
 		item_names[i][MAX_NAME_LEN - 1] = '\0';   // гарантируем терминатор
 	}
 	item_count = MAX_ITEMS;
+	return;
 }
 
-void read_items() {
+void read_items(void) {
 	FILE* fp = fopen("items.txt", "r");
 	if (!fp) {
 		printf("Ошибка: файл инвентаря не найден. Инвентарь будет заполнен по умолчанию.\n");
@@ -78,7 +180,6 @@ void read_items() {
 	}
 	fclose(fp);
 }
-
 
 void find_item(void) {
 	char user_find[MAX_NAME_LEN];
@@ -135,6 +236,34 @@ void free_supplies(void) {
 	free(supplies_totals);
 	supplies_totals = NULL;
 	supplies_count = 0;
+	return;
+}
+
+void write_diary() {
+	printf("Введите запись: ");
+	char user_routine[256];
+	int c;
+	while ((c = getchar()) != '\n' && c != EOF) {}
+	if (!fgets(user_routine, sizeof user_routine, stdin)) return;
+	user_routine[strcspn(user_routine, "\n")] = '\0';
+
+	FILE* fp = fopen("diary.txt", "a");
+	if (!fp) { printf("Ошибка открытия файла.\n"); return; }
+
+	fprintf(fp, "Фермер: %s\nТекущее время: День %d, %0d:00\nСписок предметов в инвентаре:\n", user_name, current_day, current_hour);
+	for (int i = 0; i < 10; i++)
+	{
+		fprintf(fp, "%s ", items[i] + 2); // сдвигаем указатель на 2, чтобы убрать нумерацию id
+	}
+	fprintf(fp, "\nЗаметка:\n%s\n", user_routine);
+	for (int i = 0; i < 68; i++)
+	{
+		fprintf(fp, "-");
+	}
+	fprintf(fp, "\n");
+	fclose(fp);
+	printf("Запись сохранена.\n");
+	return;
 }
 
 void count_items(void) {
@@ -246,7 +375,6 @@ int main(void)
 			"8 - Записать состояние в дневник фермера\n"
 			"9 - Расшифровать старые записи\n");
 
-
 		int us_inp;
 
 		// проверка на дурачка
@@ -255,10 +383,8 @@ int main(void)
 			int c;
 			while ((c = getchar()) != '\n' && c != EOF) {}
 			continue;
-			//scanf_s("%*s"); // чистим буфер потока ввода
 			return 0;
 		}
-
 
 		switch (us_inp) {
 		case 0:
@@ -268,115 +394,38 @@ int main(void)
 			return 0;
 		case 1:
 			printf("1 - Посмотреть на часы\n");
-			printf("Текущее время: День %d, %0d:00\n", current_day, current_hour);
+			show_time();
 			break;
 		case 2:
-			printf("Промотать время (поработать)\n");
-			int work_hours;
-			printf("Сколько часов работать?\n");
-			scanf_s("%d", &work_hours);
-			current_hour = (current_hour + work_hours) % 24;
-			current_day = current_day + (current_hour + work_hours) / 24;
-			printf("Текущее время: День %d, %0d:00\n", current_day, current_hour);
+			printf("2 - Промотать время (поработать)\n");
+			work();
 			break;
 		case 3:
 			printf("3 - Посмотреть инвентарь\n");
-			for (int i = 0; i < INV_LEN; i++) {
-				int id = inventory[i];                 // ID предмета в слоте i
-				printf("Слот %d: [%d] - %s\n",
-					i,
-					id,
-					item_names[id] + 2);            // +2 — убираем "N " из каталога
-			}
+			show_inventory();
 			break;
 		case 4: {
 			printf("4 - Положить предмет в слот\n");
-			int num_slot, item_id;
-			printf("Введите номер слота (от 0 до %d): ", INV_LEN - 1);
-			scanf_s("%d", &num_slot);
-			printf("Введите ID предмета: ");
-			scanf_s("%d", &item_id);
-
-			if (num_slot < 0 || num_slot >= INV_LEN) {
-				printf("Ошибка: нет такого слота!\n", num_slot, INV_LEN - 1);
-				break;
-			}
-			if (item_id < 0 || item_id >= MAX_ITEMS) {
-				printf("Ошибка: нет такого ID!\n", item_id, MAX_ITEMS - 1);
-				break;
-			}
-
-			inventory[num_slot] = item_id;
-			printf("В слот %d записан предмет [%d] (%s)\n",
-				num_slot, item_id, item_names[item_id] + 2);
+			put_item();
 			break;
 		}
 		case 5:
 			printf("5 - Выбросить предмет\n");
-			int num_slot_null;
-			printf("Введите номер слота: ");
-			scanf_s("%d", &num_slot_null);
-			inventory[num_slot_null] = 0;
-			//printf("slot %d, %d items", num_slot_null, inventory[num_slot_null]);
+			clean_slot();
 			break;
 		case 6: {
 			printf("6 - Уникальные находки\n");
-
-			// Шаг 1: вывести текущий инвентарь
-			for (int i = 0; i < INV_LEN; i++) {
-				int id = inventory[i];
-				printf("Слот %d: [%d] - %s\n", i, id, item_names[id] + 2);
-			}
-			printf("\n");
-
-			// Шаг 2: для каждого ID посчитать повторы среди непустых слотов
-			int any = 0;
-			for (int id = 1; id < item_count; id++) {          // 0 = "Пусто" пропускаем
-				int cnt = 0;
-				for (int slot = 0; slot < INV_LEN; slot++) {
-					if (inventory[slot] == id) cnt++;
-				}
-				if (cnt == 0) continue;                        // этого ID в инвентаре нет
-				any = 1;
-				if (cnt == 1)
-					printf("ID %d (%s) - уникален\n", id, item_names[id] + 2);
-				else
-					printf("ID %d (%s) - не уникален, лежит в %d слотах\n",
-						id, item_names[id] + 2, cnt);
-			}
-
-			if (!any) printf("В инвентаре нет предметов.\n");
+			show_uniques();
 			break;
 		}
-		case 7:
+		case 7: {
 			printf("7 - Поиск предмета в рюкзаке по названию\n");
 			find_item();
 			break;
+		}
 		case 8: {
-			printf("Введите запись: ");
-
-			char user_routine[256];
-			int c;
-			while ((c = getchar()) != '\n' && c != EOF) {}
-			if (!fgets(user_routine, sizeof user_routine, stdin)) break;
-			user_routine[strcspn(user_routine, "\n")] = '\0';
-
-			FILE* fp = fopen("diary.txt", "a");
-			if (!fp) { printf("Ошибка открытия файла.\n"); break; }
-
-			fprintf(fp, "Фермер: %s\nТекущее время: День %d, %0d:00\nСписок предметов в инвентаре:\n", user_name, current_day, current_hour);
-			for (int i = 0; i < 10; i++)
-			{
-				fprintf(fp, "%s ", items[i] + 2); // сдвигаем указатель на 2, чтобы убрать нумерацию id
-			}
-			fprintf(fp, "\nЗаметка:\n%s\n", user_routine);
-			for (int i = 0; i < 68; i++)
-			{
-				fprintf(fp, "-");
-			}
-			fprintf(fp, "\n");
-			fclose(fp);
-			printf("Запись сохранена.\n");
+			printf("Записать состояние в дневник фермера\n");
+			write_diary();
 			break;
 		}
 		case 9:
@@ -385,10 +434,5 @@ int main(void)
 			break;
 		}
 	}
-
-
-
-
-
 	return 0;
 }
