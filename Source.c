@@ -519,7 +519,7 @@ int main(void)
             break;
         }
         case 8: {
-            printf("Записать состояние в дневник фермера\n");
+            printf("8 - Записать состояние в дневник фермера\n");
             write_diary();
             break;
         }
@@ -548,11 +548,11 @@ int main(void)
 
                 int dx = 0, dy = 0;
                 switch (cmd) {
-                case 'W': case 'w': dy = -1; break;
-                case 'S': case 's': dy = 1; break;
-                case 'A': case 'a': dx = -1; break;
-                case 'D': case 'd': dx = 1; break;
-                case 'Q': case 'q':
+                case 'W': case 'w': case 'Ц': case 'ц': dy = -1; break;
+                case 'S': case 's': case 'Ы': case 'ы': dy = 1; break;
+                case 'A': case 'a': case 'Ф': case 'ф': dx = -1; break;
+                case 'D': case 'd': case 'В': case 'в': dx = 1; break;
+                case 'Q': case 'q': case 'Й': case 'й':
                     printf("Герой отправился домой.\n");
                     free_map(&map);
                     return 0;
