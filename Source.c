@@ -1,9 +1,12 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #pragma warning(disable : 4996)
 #include <windows.h>
 #include <locale.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
+
 
 #define INV_LEN	10
 #define MAX_ITEMS    10
@@ -12,6 +15,28 @@ char user_name[MAX_NAME_LEN] = { 0 };
 char items[MAX_ITEMS][MAX_NAME_LEN] = {
 		 "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка", "5 Ведро", "6 Удобрение", "7 Корзина", "8 Грабли", "9 Лопата"
 };
+
+#define MIN_SIZE 5
+#define MAX_SIZE 30
+#define WALL    '#'
+#define EMPTY   '.'
+#define TREE    'T'
+#define ROCK    'R'
+#define HERO    '@'
+#define CAVE_IN   '0'   // вход в пещеру (в лесу)
+#define CAVE_OUT  '0'   // выход из пещеры (в пещере)
+#define MAP_FOREST 0
+#define MAP_CAVE   1
+
+// Структура карты
+typedef struct {
+	char** grid;
+	int width;
+	int height;
+	int heroX;
+	int heroY;
+	int type;          // MAP_FOREST или MAP_CAVE
+} Map;
 
 void Your_Name(void) {
 	int er_inp_flag = 1;
@@ -348,16 +373,32 @@ void count_items(void) {
 	printf("Сводка записана в output.txt.\n");
 }
 
+int generateMap(Map* m) {
+	m->width = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
+	m->height = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
+
+	m->grid = (char**)malloc(m->height * sizeof(char*));
+	if (!m->grid) return 0;
+
+	for (int i = 0; i < m->height; i++) {
+		m->grid[i] = (char*)malloc(m->width * sizeof(char));
+		if (!m->grid[i]) {
+			for (int j = 0; j < i; j++) free(m->grid[j]);
+			free(m->grid);
+			m->grid = NULL;
+			return 0;
+		}
+	}
+}
 
 int main(void)
-
 {
 	// имя, введённое пользователем на русском, отображается корректно, только если все 3 выключены (?)
 	SetConsoleCP(65001);
 	SetConsoleOutputCP(65001);
-	setlocale(LC_ALL, ".UTF-8");
+	// setlocale(LC_ALL, ".UTF-8");
 
-	
+
 	Your_Name();// узнаём имя пользователя
 	read_items(); // создаём инвентарь
 	for (int i = 0; i < item_count; i++)
@@ -373,12 +414,13 @@ int main(void)
 			"6 - Уникальные находки\n"
 			"7 - Поиск предмета в рюкзаке по названию\n"
 			"8 - Записать состояние в дневник фермера\n"
-			"9 - Расшифровать старые записи\n");
+			"9 - Расшифровать старые записи\n"
+			"10 - Отправиться в приключение\n");
 
 		int us_inp;
 
 		// проверка на дурачка
-		if ((scanf_s("%d", &us_inp) != 1) || (us_inp > 9) || (us_inp < 0)) {
+		if ((scanf_s("%d", &us_inp) != 1) || (us_inp > 10) || (us_inp < 0)) {
 			printf("Ошибка ввода, попробуйте ещё раз!\n");
 			int c;
 			while ((c = getchar()) != '\n' && c != EOF) {}
@@ -387,32 +429,37 @@ int main(void)
 		}
 
 		switch (us_inp) {
-		case 0:
+		case 0: {
 			printf("0 - Выход\n");
 			free_supplies();
 			iters = 0;
 			return 0;
-		case 1:
+		}
+		case 1: {
 			printf("1 - Посмотреть на часы\n");
 			show_time();
 			break;
-		case 2:
+		}
+		case 2: {
 			printf("2 - Промотать время (поработать)\n");
 			work();
 			break;
-		case 3:
+		}
+		case 3: {
 			printf("3 - Посмотреть инвентарь\n");
 			show_inventory();
 			break;
+		}
 		case 4: {
 			printf("4 - Положить предмет в слот\n");
 			put_item();
 			break;
 		}
-		case 5:
+		case 5: {
 			printf("5 - Выбросить предмет\n");
 			clean_slot();
 			break;
+		}
 		case 6: {
 			printf("6 - Уникальные находки\n");
 			show_uniques();
@@ -428,10 +475,24 @@ int main(void)
 			write_diary();
 			break;
 		}
-		case 9:
+		case 9: {
 			printf("9 - Расшифровать старые записи\n");
 			count_items();
 			break;
+		}
+		case 10: {
+			printf("10 - Отправиться в приключение\n");
+			srand((unsigned)time(NULL));
+
+			Map map = { 0 };
+			if (!generateMap(&map)) {
+				fprintf(stderr, "Ошибка выделения памяти.\n");
+				return 1;
+			}
+
+			printf("Сгенерирована карта %dx%d\n", map.width, map.height);
+			break;
+		}
 		}
 	}
 	return 0;
