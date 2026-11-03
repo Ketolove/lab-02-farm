@@ -27,14 +27,20 @@ char items[MAX_ITEMS][MAX_NAME_LEN] = {
 #define ROCK    'R'
 #define HERO    '@'
 
+#define CAVE_IN   'O'
+#define CAVE_OUT  'X'
+
+#define MAP_FOREST 0
+#define MAP_CAVE   1
+
 typedef struct {
     char** grid;
     int width;
     int height;
     int heroX;
     int heroY;
+    int type;              // MAP_FOREST или MAP_CAVE
 } Map;
-
 
 void Your_Name(void) {
     int er_inp_flag = 1;
@@ -184,25 +190,18 @@ void read_items(void) {
         return;
     }
 
-    int n = 0;
-    char line[MAX_NAME_LEN * 2];
-    while (n < MAX_ITEMS && fgets(line, sizeof line, fp)) {
-        line[strcspn(line, "\r\n")] = '\0';
-        if (line[0] == '\0') continue;   // пустые строки пропускаем
-        strncpy(item_names[n], line, MAX_NAME_LEN - 1);
-        item_names[n][MAX_NAME_LEN - 1] = '\0';
-        n++;
-    }
-    fclose(fp);
 
+    int n = 0;
     item_count = n;
     if (item_count < MAX_ITEMS) {
+        // дополнить оставшиеся слоты дефолтными именами
         for (int i = item_count; i < MAX_ITEMS; i++) {
             strncpy(item_names[i], items[i], MAX_NAME_LEN - 1);
             item_names[i][MAX_NAME_LEN - 1] = '\0';
         }
         item_count = MAX_ITEMS;
     }
+    fclose(fp);
 }
 
 void find_item(void) {
@@ -242,6 +241,7 @@ void find_item(void) {
         printf("Предмет \"%s\" (ID %d) есть в каталоге, но в инвентаре отсутствует.\n",
             user_find, found_id);
 }
+
 
 void free_supplies(void) {
     if (supplies_names) {
@@ -310,6 +310,7 @@ void count_items(void) {
                 printf("Ошибка выделения памяти.\n");
                 if (tmp_names)  supplies_names = tmp_names;
                 if (tmp_totals) supplies_totals = tmp_totals;
+                free_supplies();
                 fclose(fp);
                 return;
             }
@@ -320,6 +321,7 @@ void count_items(void) {
             supplies_names[supplies_count] = malloc(len + 1);
             if (!supplies_names[supplies_count]) {
                 printf("Ошибка выделения памяти.\n");
+                free_supplies();
                 fclose(fp);
                 return;
             }
@@ -348,6 +350,7 @@ void count_items(void) {
     printf("Сводка записана в output.txt.\n");
 }
 
+
 int is_inside(const Map* m, int x, int y) {
     return x > 0 && x < m->width - 1 &&
         y > 0 && y < m->height - 1;
@@ -355,17 +358,16 @@ int is_inside(const Map* m, int x, int y) {
 
 void free_map(Map* m) {
     if (!m->grid) return;
-    for (int i = 0; i < m->height; i++) {
-        free(m->grid[i]);
-    }
+    for (int i = 0; i < m->height; i++) free(m->grid[i]);
     free(m->grid);
     m->grid = NULL;
+    m->width = m->height = 0;
+    m->heroX = m->heroY = 0;
 }
 
-int generate_map(Map* m) {
-    m->width = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
-    m->height = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
-
+int alloc_grid(Map* m, int width, int height) {
+    m->width = width;
+    m->height = height;
     m->grid = (char**)malloc(m->height * sizeof(char*));
     if (!m->grid) return 0;
 
@@ -377,65 +379,148 @@ int generate_map(Map* m) {
             m->grid = NULL;
             return 0;
         }
+        memset(m->grid[i], EMPTY, m->width);
     }
+    return 1;
+}
+
+int place_hero(Map* m) {
+    for (int tries = 0; tries < 1000; tries++) {
+        int x = 1 + rand() % (m->width - 2);
+        int y = 1 + rand() % (m->height - 2);
+        if (m->grid[y][x] == EMPTY) {
+            m->heroX = x;
+            m->heroY = y;
+            m->grid[y][x] = HERO;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int place_symbol(Map* m, char symbol) {
+    for (int tries = 0; tries < 1000; tries++) {
+        int x = 1 + rand() % (m->width - 2);
+        int y = 1 + rand() % (m->height - 2);
+        if (m->grid[y][x] == EMPTY) {
+            m->grid[y][x] = symbol;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int generate_map(Map* m) {
+    int width = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
+    int height = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
+
+    if (!alloc_grid(m, width, height)) return 0;
+    m->type = MAP_FOREST;
 
     int obstacle_percent = 15 + rand() % 16;
 
     for (int y = 0; y < m->height; y++) {
         for (int x = 0; x < m->width; x++) {
-            if (x == 0 || y == 0 ||
-                x == m->width - 1 || y == m->height - 1) {
+            if (x == 0 || y == 0 || x == m->width - 1 || y == m->height - 1) {
                 m->grid[y][x] = WALL;
             }
             else {
                 int r = rand() % 100;
-                if (r < obstacle_percent) {
+                if (r < obstacle_percent)
                     m->grid[y][x] = (rand() % 2) ? TREE : ROCK;
-                }
-                else {
+                else
                     m->grid[y][x] = EMPTY;
-                }
             }
         }
     }
 
-    int attempts = 0;
-    do {
-        m->heroX = 1 + rand() % (m->width - 2);
-        m->heroY = 1 + rand() % (m->height - 2);
-        attempts++;
-        if (attempts > 1000) {
-            m->grid[m->heroY][m->heroX] = EMPTY;
-            break;
-        }
-    } while (m->grid[m->heroY][m->heroX] != EMPTY);
+    if (!place_hero(m)) { // принудительная постановка героя (если не встретилось пустой клетки)
+        m->heroX = 1; m->heroY = 1;
+        m->grid[1][1] = HERO;
+    }
 
-    m->grid[m->heroY][m->heroX] = HERO;
+    place_symbol(m, CAVE_IN);
+
+    return 1;
+}
+
+int generate_cave(Map* m) {
+    int width = 5 + rand() % 4;
+    int height = 5 + rand() % 4;
+
+    if (!alloc_grid(m, width, height)) return 0;
+    m->type = MAP_CAVE;
+
+    int obstacle_percent = 40 + rand() % 21;
+
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            if (x == 0 || y == 0 || x == m->width - 1 || y == m->height - 1) {
+                m->grid[y][x] = WALL;
+            }
+            else {
+                int r = rand() % 100;
+                if (r < obstacle_percent)
+                    m->grid[y][x] = (rand() % 2) ? TREE : ROCK;
+                else
+                    m->grid[y][x] = EMPTY;
+            }
+        }
+    }
+
+    if (!place_hero(m)) {
+        m->heroX = 1; m->heroY = 1;
+        m->grid[1][1] = HERO;
+    }
+
+    place_symbol(m, CAVE_OUT);
+
     return 1;
 }
 
 void print_map(const Map* m) {
     for (int y = 0; y < m->height; y++) {
-        for (int x = 0; x < m->width; x++) {
+        for (int x = 0; x < m->width; x++)
             putchar(m->grid[y][x]);
-        }
         putchar('\n');
     }
 }
 
-void try_move(Map* m, int dx, int dy) {
+int try_move(Map* m, int dx, int dy) {
     int nx = m->heroX + dx;
     int ny = m->heroY + dy;
 
     if (!is_inside(m, nx, ny)) {
         printf("Герой упёрся в стену!\n");
-        return;
+        return 0;
     }
 
     char target = m->grid[ny][nx];
     if (target == WALL || target == TREE || target == ROCK) {
         printf("Путь заблокирован (%c).\n", target);
-        return;
+        return 0;
+    }
+
+    if (target == CAVE_IN) {
+        printf("Вы спускаетесь в пещеру...\n");
+        free_map(m);
+        if (!generate_cave(m)) {
+            fprintf(stderr, "Ошибка генерации пещеры.\n");
+            exit(1);
+        }
+        printf("Пещера %dx%d:\n", m->width, m->height);
+        return 1;
+    }
+
+    if (target == CAVE_OUT) {
+        printf("Вы выбираетесь на поверхность...\n");
+        free_map(m);
+        if (!generate_map(m)) {
+            fprintf(stderr, "Ошибка генерации леса.\n");
+            exit(1);
+        }
+        printf("Лес %dx%d:\n", m->width, m->height);
+        return 1;
     }
 
     m->grid[m->heroY][m->heroX] = EMPTY;
@@ -444,10 +529,15 @@ void try_move(Map* m, int dx, int dy) {
     m->grid[ny][nx] = HERO;
 
     printf("Герой шагнул на (%d, %d).\n", nx, ny);
+    return 0;
 }
+
+
+
 
 int main(void)
 {
+    setlocale(LC_ALL, ".UTF-8");
     SetConsoleCP(65001);
     SetConsoleOutputCP(65001);
 
@@ -470,7 +560,7 @@ int main(void)
             "7  - Поиск предмета в рюкзаке по названию\n"
             "8  - Записать состояние в дневник фермера\n"
             "9  - Расшифровать старые записи\n"
-            "10 - Отправиться в приключение\n");
+            "10 - Отправиться в приключение\n");   // [FIX] добавлен пункт 10
 
         int us_inp;
 
@@ -538,12 +628,13 @@ int main(void)
                 return 1;
             }
 
-            printf("Сгенерирована карта %dx%d\n", map.width, map.height);
+            printf("Сгенерирован лес %dx%d\n", map.width, map.height);
             print_map(&map);
 
-            char cmd;
-            for (;;) {
+            int running = 1;
+            while (running) {
                 printf("Направление (W/A/S/D, Q - выйти): ");
+                char cmd;
                 if (scanf(" %c", &cmd) != 1) break;
 
                 int dx = 0, dy = 0;
@@ -554,20 +645,25 @@ int main(void)
                 case 'D': case 'd': case 'В': case 'в': dx = 1; break;
                 case 'Q': case 'q': case 'Й': case 'й':
                     printf("Герой отправился домой.\n");
-                    free_map(&map);
-                    return 0;
+                    running = 0;
+                    continue;
                 default:
                     printf("Неизвестная команда.\n");
                     continue;
                 }
 
-                try_move(&map, dx, dy);
+                int changed = try_move(&map, dx, dy); // сменилась ли карта?
                 putchar('\n');
                 print_map(&map);
+                if (changed) {
+                    if (map.type == MAP_CAVE)
+                        printf("[Вы в пещере]\n");
+                    else
+                        printf("[Вы в лесу]\n");
+                }
             }
-
             free_map(&map);
-            return 0;
+            break;
         }
         }
     }
