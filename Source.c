@@ -20,8 +20,28 @@ char items[MAX_ITEMS][MAX_NAME_LEN] = {
 
 typedef enum {
     MAP_FOREST = 0,
-    MAP_CAVE = 1
+    MAP_CAVE = 1,
 } Map_types;
+
+
+
+typedef enum {
+    MOVE_BLOCKED,
+    MOVE_OK,
+    MOVE_MAP_CHANGED,
+    MOVE_OUT_OF_STAM
+} MoveResult;
+
+typedef enum {
+    STEP_STAM = 1,
+    MAP_CHANGED_STAM = 5,
+    MAP_CHANGED_GOLD = 10
+} Delta;
+
+typedef struct {
+    int current_hour;
+    int current_day;
+} Timing;
 
 #define MIN_SIZE 5
 #define MAX_SIZE 30
@@ -55,6 +75,7 @@ typedef struct Hero {
 } Hero;
 
 Hero* hero = NULL;
+Timing timing = { .current_day = 1, .current_hour = 8 };
 
 void Your_Name(struct Hero* h) {
     int er_inp_flag = 1;
@@ -85,8 +106,6 @@ char** supplies_names = NULL;
 int* supplies_totals = NULL;
 int    supplies_count = 0;
 int    item_count = 0;
-int    current_day = 1;
-int    current_hour = 8;
 int    inventory[INV_LEN] = { 0 };
 
 void create_hero(void) {
@@ -114,6 +133,7 @@ void create_hero(void) {
         return;
     }
 
+
     hero->cur_hp = 100;
     hero->max_hp = 100;
     hero->cur_stam = 50;
@@ -133,7 +153,7 @@ void create_hero(void) {
     printf("Персонаж создан по адресу %p\n", (void*)hero);
 }
 
-void show_hero_card(Hero* h) {
+void show_hero_card(Hero* h, Timing* t) {
     if (!h) {
         printf("Персонаж ещё не создан. Создайте его в пункте 1.\n");
         return;
@@ -143,7 +163,7 @@ void show_hero_card(Hero* h) {
     printf("HP:       %d/%d\n", h->cur_hp, h->max_hp);
     printf("Стамина:  %d/%d\n", h->cur_stam, h->max_stam);
     printf("Золото:   %d\n", h->gold);
-    printf("Время:    День %d, %02d:00\n", current_day, current_hour);
+    printf("Время:    День %d, %02d:00\n", t->current_day, t->current_hour);
     printf("Инвентарь:\n");
     for (int i = 0; i < INV_LEN; i++) {
         int id = inventory[i];
@@ -151,20 +171,21 @@ void show_hero_card(Hero* h) {
     }
 }
 
-void show_time(void) {
-    printf("Текущее время: День %d, %02d:00\n", current_day, current_hour);
+void show_time(Timing* t) {
+    printf("Текущее время: День %d, %02d:00\n", t->current_day, t->current_hour);
 }
-int hours_until_2am(void) {
-    int now = current_hour;
+
+int hours_until_2am(Timing* t) {
+    int now = t->current_hour;
     if (now < 2)   return 2 - now;
     if (now == 2)  return 24;
     return 24 - now + 2;
 }
 
-void wait(void) {
-    int max_wait = hours_until_2am();
+void wait(Timing* t) {
+    int max_wait = hours_until_2am(t);
     printf("Сейчас: День %d, %02d:00. До ближайших 02:00 можно ждать не больше %d ч.\n",
-        current_day, current_hour, max_wait);
+        t->current_day, t->current_hour, max_wait);
 
     int hours;
     printf("Сколько часов ждать? ", max_wait);
@@ -174,24 +195,24 @@ void wait(void) {
         return;
     }
 
-    int total = current_hour + hours;
-    current_day += total / 24;
-    current_hour = total % 24;
+    int total = t->current_hour + hours;
+    t->current_day += total / 24;
+    t->current_hour = total % 24;
 
     printf("Прошло %d ч. Теперь: День %d, %02d:00\n",
-        hours, current_day, current_hour);
+        hours, t->current_day, t->current_hour);
 }
 
-void sleep(Hero* h) {
+void sleep(Hero* h, Timing* t) {
     if (!h) { printf("Сначала создайте персонажа.\n"); return; }
 
-    current_day += 1;
-    current_hour = 8;
+    t->current_day += 1;
+    t->current_hour = 8;
 
     h->cur_hp = h->max_hp;
     h->cur_stam = h->max_stam;
 
-    printf("Вы проспали до утра. День %d, %02d:00\n", current_day, current_hour);
+    printf("Вы проспали до утра. День %d, %02d:00\n", t->current_day, t->current_hour);
     printf("HP: %d/%d, Стамина: %d/%d\n",
         h->cur_hp, h->max_hp, h->cur_stam, h->max_stam);
 }
@@ -355,7 +376,7 @@ void free_supplies(void) {
     supplies_count = 0;
 }
 
-void write_diary(struct Hero* h) {
+void write_diary(struct Hero* h, Timing* t) {
     printf("Введите запись: ");
     char hero_routine[256];
     int c;
@@ -367,7 +388,7 @@ void write_diary(struct Hero* h) {
     if (!fp) { printf("Ошибка открытия файла.\n"); return; }
 
     fprintf(fp, "Фермер: %s\nТекущее время: День %d, %02d:00\nСписок предметов в инвентаре:\n",
-        h->hero_name, current_day, current_hour);
+        h->hero_name, t->current_day, t->current_hour);
     for (int i = 0; i < 10; i++)
         fprintf(fp, "%s ", items[i] + 2);
     fprintf(fp, "\nЗаметка:\n%s\n", hero_routine);
@@ -551,7 +572,7 @@ int generate_cave(Map* m, struct Hero* h) {
     if (!alloc_grid(m, width, height)) return 0;
     m->type = MAP_CAVE;
 
-    int obstacle_percent = 40 + rand() % 21;
+    int obstacle_percent = 20 + rand() % 21;
 
     for (int y = 0; y < m->height; y++) {
         for (int x = 0; x < m->width; x++) {
@@ -586,23 +607,26 @@ void print_map(const Map* m) {
     }
 }
 
-int try_move(Map* m, struct Hero* h, int dx, int dy) {
+MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy) {
     int nx = h->heroX + dx;
     int ny = h->heroY + dy;
 
     if (!is_inside(m, nx, ny)) {
         printf("Герой упёрся в стену!\n");
-        return 0;
+        return MOVE_BLOCKED;
     }
 
     char target = m->grid[ny][nx];
     if (target == WALL || target == TREE || target == ROCK) {
         printf("Путь заблокирован (%c).\n", target);
-        return 0;
+        return MOVE_BLOCKED;
     }
 
     if (target == CAVE_IN) {
         printf("Вы спускаетесь в пещеру...\n");
+        h->gold += MAP_CHANGED_GOLD * m->level;
+        h->cur_stam -= MAP_CHANGED_STAM;
+        t->current_hour += 1;
         m->level += 1;
         free_map(m, h);
         if (!generate_cave(m, h)) {
@@ -610,11 +634,14 @@ int try_move(Map* m, struct Hero* h, int dx, int dy) {
             exit(1);
         }
         printf("Пещера %dx%d:\n", m->width, m->height);
-        return 1;
+        return MOVE_MAP_CHANGED;
     }
 
     if (target == CAVE_OUT) {
         printf("Вы выбираетесь на поверхность...\n");
+        h->gold += MAP_CHANGED_GOLD * m->level;
+        h->cur_stam -= MAP_CHANGED_STAM;
+        t->current_hour += 1;
         m->level += 1;
         free_map(m, h);
         if (!generate_map(m, h)) {
@@ -622,18 +649,42 @@ int try_move(Map* m, struct Hero* h, int dx, int dy) {
             exit(1);
         }
         printf("Лес %dx%d:\n", m->width, m->height);
-        return 1;
+        return MOVE_MAP_CHANGED;
     }
 
     m->grid[h->heroY][h->heroX] = EMPTY;
     h->heroX = nx;
     h->heroY = ny;
+    h->cur_stam -= STEP_STAM;
     m->grid[ny][nx] = HERO;
 
     printf("Герой шагнул на (%d, %d).\n", nx, ny);
-    return 0;
+
+    if (h->cur_stam < 1) {
+        printf("Выносливость на нуле — герой отправляется домой.\n");
+        return MOVE_OUT_OF_STAM;
+    }
+
+    if (t->current_hour == 2) {
+        printf("Наступило 02:00 — пора спать!\n");
+        return MOVE_OUT_OF_STAM;
+    }
+    return MOVE_OK;
 }
 
+int is_ready(Hero* h, Timing* t) {
+    return ((h) && (h->cur_stam > 0) && (t->current_hour < 2 || t->current_hour >= 8));
+}
+
+void print_hud(Hero* h, const Map* m, Timing* t) {
+    if (!h) return;
+    printf("HP: %d/%d | Выносливость: %d/%d | Золото: %d | Уровень: %d | Время: %02d:00\n",
+        h->cur_hp, h->max_hp,
+        h->cur_stam, h->max_stam,
+        h->gold,
+        m->level,
+        t->current_hour);
+}
 
 void print_menu(Hero* h) {
     if (h)
@@ -657,7 +708,8 @@ void print_menu(Hero* h) {
 }
 
 void print_menu_time() {
-    printf("1 - Посмотреть на часы\n"
+    printf("0 - Назад\n"
+        "1 - Посмотреть на часы\n"
         "2 - Пропустить время (Ждать)\n"
         "3 - Отдых (Лечь спать)\n");
 }
@@ -669,7 +721,7 @@ int main(void)
     SetConsoleOutputCP(65001);
 
     Map map = { 0 };
-    map.level = 0;
+    map.level = 1;
 
     read_items();
 
@@ -701,14 +753,14 @@ int main(void)
             break;
         case 2:
             printf("2 - Карточка персонажа\n");
-            show_hero_card(hero);
+            show_hero_card(hero, &timing);
             break;
         case 3:
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             print_menu_time();
             int us_inp_time;
 
-            if ((scanf_s("%d", &us_inp_time) != 1) || (us_inp_time > 3) || (us_inp_time < 1)) {
+            if ((scanf_s("%d", &us_inp_time) != 1) || (us_inp_time > 3) || (us_inp_time < 0)) {
                 printf("Ошибка ввода, попробуйте ещё раз!\n");
                 int c;
                 while ((c = getchar()) != '\n' && c != EOF) {}
@@ -716,19 +768,23 @@ int main(void)
             }
 
             switch (us_inp_time) {
+            case 0: {
+                printf("0 - Назад\n");
+                break;
+            }
             case 1: {
                 printf("1 - Посмотреть на часы\n");
-                show_time();
+                show_time(&timing);
                 break;
             }
             case 2: {
                 printf("2 - Пропустить время (ждать)\n");
-                wait();
+                wait(&timing);
                 break;
             }
             case 3: {
                 printf("3 - Отдых (лечь спать)\n");
-                sleep(hero);
+                sleep(hero, &timing);
                 break;
             }
             }
@@ -765,7 +821,7 @@ int main(void)
         case 9: {
             printf("9 - Записать состояние в дневник фермера\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
-            write_diary(hero);
+            write_diary(hero, &timing);
             break;
         }
         case 10: {
@@ -776,15 +832,21 @@ int main(void)
         }
         case 11: {
             printf("11 - Отправиться в приключение\n");
-            if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
+
+            if (!is_ready(hero, &timing)) {
+                printf("Персонаж не готов к приключениям!\n");
+                break;
+            }
+
             srand((unsigned)time(NULL));
 
             if (!generate_map(&map, hero)) {
                 fprintf(stderr, "Ошибка выделения памяти.\n");
-                return 1;
+                break;
             }
 
             printf("Сгенерирован лес %dx%d\n", map.width, map.height);
+            print_hud(hero, &map, &timing);
             print_map(&map);
 
             int running = 1;
@@ -801,6 +863,7 @@ int main(void)
                 case 'D': case 'd': case 'В': case 'в': dx = 1; break;
                 case 'Q': case 'q': case 'Й': case 'й':
                     printf("Герой отправился домой.\n");
+                    map.level = 0;
                     running = 0;
                     continue;
                 default:
@@ -808,14 +871,27 @@ int main(void)
                     continue;
                 }
 
-                int changed = try_move(&map, hero, dx, dy);
+                MoveResult r = try_move(&map, hero, &timing, dx, dy);
+
                 putchar('\n');
+                print_hud(hero, &map, &timing);
                 print_map(&map);
-                if (changed) {
-                    if (map.type == MAP_CAVE)
-                        printf("[Вы в пещере]\n");
-                    else
-                        printf("[Вы в лесу]\n");
+
+                switch (r) {
+                case MOVE_OUT_OF_STAM:
+                    printf("Герой отправился домой (нет выносливости).\n");
+                    map.level = 0;
+                    hero->gold = hero->gold / 2;
+                    running = 0;
+                    break;
+                case MOVE_MAP_CHANGED:
+                    if (map.type == MAP_CAVE) printf("[Вы в пещере]\n");
+                    else                       printf("[Вы в лесу]\n");
+                    break;
+                case MOVE_OK:
+                case MOVE_BLOCKED:
+                default:
+                    break;
                 }
             }
             free_map(&map, hero);
