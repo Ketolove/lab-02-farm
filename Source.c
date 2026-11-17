@@ -11,7 +11,6 @@
 #define MAX_ITEMS    10
 #define MAX_NAME_LEN 32
 
-
 typedef enum {
     MAP_FOREST = 0,
     MAP_CAVE = 1
@@ -68,40 +67,6 @@ typedef struct Hero {
 } Hero;
 
 
-Weather generate_weather(void);
-int     generate_map(Map* m, Hero* h);
-int     generate_cave(Map* m, Hero* h);
-int     place_hero(Map* m, Hero* h);
-int     place_symbol(Map* m, char symbol);
-int     alloc_grid(Map* m, int width, int height);
-void    free_map(Map* m, Hero* h);
-int     is_inside(const Map* m, int x, int y);
-MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy);
-void    print_map(const Map* m);
-void    print_hud(Hero* h, const Map* m, Timing* t);
-int     is_ready(Hero* h, Timing* t);
-void    adventure(Hero* h, Timing* t);
-void    create_hero(void);
-void    Your_Name(Hero* h);
-void    show_hero_card(Hero* h, Timing* t);
-void    show_time(Timing* t);
-int     hours_until_2am(Timing* t);
-void    wait_hours(Timing* t);
-void    sleep_hero(Hero* h, Timing* t);
-void    show_inventory(void);
-void    put_item(void);
-void    clean_slot(void);
-void    show_uniques(void);
-void    fill_defaults(void);
-void    read_items(void);
-void    find_item(void);
-void    free_supplies(void);
-void    write_diary(Hero* h, Timing* t);
-void    count_items(void);
-void    print_menu(Hero* h);
-void    print_menu_time(void);
-
-
 char items[MAX_ITEMS][MAX_NAME_LEN] = {
     "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка",
     "5 Ведро", "6 Удобрение", "7 Корзина", "8 Грабли", "9 Лопата"
@@ -129,6 +94,42 @@ const char* weather_names[] = { "Ясно", "Ливень", "Туман", "Ур�
 #define HERO     '@'
 #define CAVE_IN  'O'
 #define CAVE_OUT 'X'
+
+
+Weather    generate_weather(void);
+int        generate_map(Map* m, Hero* h);
+int        generate_cave(Map* m, Hero* h);
+int        place_hero(Map* m, Hero* h);
+int        place_symbol(Map* m, char symbol);
+int        alloc_grid(Map* m, int width, int height);
+void       free_map(Map* m, Hero* h);
+int        is_inside(const Map* m, int x, int y);
+int        hurricane_blocks_transition(Hero* h);
+MoveResult do_transition(Map* m, Hero* h, Timing* t, int to_cave);
+MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy);
+void       print_map(const Map* m);
+void       print_hud(Hero* h, const Map* m, Timing* t);
+int        is_ready(Hero* h, Timing* t);
+void       adventure(Hero* h, Timing* t);
+void       create_hero(void);
+void       Your_Name(Hero* h);
+void       show_hero_card(Hero* h, Timing* t);
+void       show_time(Timing* t);
+int        hours_until_2am(Timing* t);
+void       wait_hours(Timing* t);
+void       sleep_hero(Hero* h, Timing* t);
+void       show_inventory(void);
+void       put_item(void);
+void       clean_slot(void);
+void       show_uniques(void);
+void       fill_defaults(void);
+void       read_items(void);
+void       find_item(void);
+void       free_supplies(void);
+void       write_diary(Hero* h, Timing* t);
+void       count_items(void);
+void       print_menu(Hero* h);
+void       print_menu_time(void);
 
 void Your_Name(Hero* h) {
     while (1) {
@@ -172,8 +173,8 @@ void create_hero(void) {
 
     hero->cur_hp = 100;
     hero->max_hp = 100;
-    hero->cur_stam = 50;
-    hero->max_stam = 50;
+    hero->cur_stam = 100;
+    hero->max_stam = 100;
     hero->gold = 0;
     hero->heroX = 0;
     hero->heroY = 0;
@@ -215,33 +216,85 @@ void show_hero_card(Hero* h, Timing* t) {
     }
 }
 
-
 Weather generate_weather(void) {
     Weather w;
     w.type = (WeatherType)(rand() % 4);
 
     switch (w.type) {
     case WEATHER_CLEAR:
-        w.temperature = 15 + rand() % 16;   /* 15..30 */
-        w.wind_power = rand() % 4;         /* 0..3   */
+        w.temperature = 15 + rand() % 16;
+        w.wind_power = rand() % 4;
         break;
     case WEATHER_RAIN:
-        w.temperature = 5 + rand() % 11;    /* 5..15  */
-        w.wind_power = 3 + rand() % 5;     /* 3..7   */
+        w.temperature = 5 + rand() % 11;
+        w.wind_power = 3 + rand() % 5;
         break;
     case WEATHER_FOG:
-        w.temperature = 0 + rand() % 11;    /* 0..10  */
-        w.wind_power = rand() % 3;         /* 0..2   */
+        w.temperature = 0 + rand() % 11;
+        w.wind_power = rand() % 3;
         break;
     case WEATHER_HURRICANE:
     default:
-        w.temperature = -5 + rand() % 11;   /* -5..5  */
-        w.wind_power = 7 + rand() % 4;     /* 7..10  */
+        w.temperature = -5 + rand() % 11;
+        w.wind_power = 7 + rand() % 4;
         break;
     }
     return w;
 }
 
+int hurricane_blocks_transition(Hero* h) {
+    if (weather.type != WEATHER_HURRICANE) return 0;
+    if ((rand() % 100) >= 20) return 0;
+
+    h->cur_stam -= MAP_CHANGED_STAM;
+    printf("Ураган! Герой не смог перейти — ветер отбросил его назад.\n");
+    return 1;
+}
+
+
+MoveResult do_transition(Map* m, Hero* h, Timing* t, int to_cave) {
+    int stam_cost = MAP_CHANGED_STAM;
+    if (weather.type == WEATHER_RAIN) {
+        stam_cost *= 2;
+        printf("Ливень: переход стоит вдвое дороже (%d стамины).\n", stam_cost);
+    }
+
+    if (hurricane_blocks_transition(h)) {
+        if (h->cur_stam <= 0) {
+            printf("Выносливость на нуле — герой падает без сил!\n");
+            return MOVE_OUT_OF_STAM;
+        }
+        return MOVE_BLOCKED;
+    }
+
+    h->gold += MAP_CHANGED_GOLD * m->level;
+    h->cur_stam -= stam_cost;
+    t->current_hour += 1;
+    m->level += 1;
+
+    free_map(m, h);
+    int ok = to_cave ? generate_cave(m, h) : generate_map(m, h);
+    if (!ok) {
+        fprintf(stderr, "Ошибка генерации карты.\n");
+        exit(1);
+    }
+
+    weather = generate_weather();
+    printf("%s %dx%d. Новая погода: %s, %d°C, ветер %d.\n",
+        to_cave ? "Пещера" : "Лес",
+        m->width, m->height,
+        weather_names[weather.type], weather.temperature, weather.wind_power);
+
+    if (h->cur_stam <= 0) {
+        printf("Выносливость на нуле — герой падает без сил!\n");
+        return MOVE_OUT_OF_STAM;
+    }
+    if (t->current_hour == 2) {
+        printf("Наступило 02:00 — герой падает без сил!\n");
+        return MOVE_OUT_OF_STAM;
+    }
+    return MOVE_MAP_CHANGED;
+}
 
 void show_time(Timing* t) {
     printf("Текущее время: День %d, %02d:00\n", t->current_day, t->current_hour);
@@ -293,7 +346,6 @@ void sleep_hero(Hero* h, Timing* t) {
     printf("HP: %d/%d, Стамина: %d/%d\n",
         h->cur_hp, h->max_hp, h->cur_stam, h->max_stam);
 }
-
 
 void show_inventory(void) {
     for (int i = 0; i < INV_LEN; i++) {
@@ -525,7 +577,6 @@ void count_items(void) {
     printf("Сводка записана в output.txt.\n");
 }
 
-
 int is_inside(const Map* m, int x, int y) {
     return x > 0 && x < m->width - 1 &&
         y > 0 && y < m->height - 1;
@@ -705,58 +756,12 @@ MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy) {
 
     if (target == CAVE_IN) {
         printf("Вы спускаетесь в пещеру...\n");
-        h->gold += MAP_CHANGED_GOLD * m->level;
-        h->cur_stam -= MAP_CHANGED_STAM;
-        t->current_hour += 1;
-        m->level += 1;
-
-        free_map(m, h);
-        if (!generate_cave(m, h)) {
-            fprintf(stderr, "Ошибка генерации пещеры.\n");
-            exit(1);
-        }
-        weather = generate_weather();
-        printf("Пещера %dx%d. Погода: %s, %d°C, ветер %d.\n",
-            m->width, m->height,
-            weather_names[weather.type], weather.temperature, weather.wind_power);
-
-        if (h->cur_stam <= 0) {
-            printf("Выносливость на нуле — герой падает без сил!\n");
-            return MOVE_OUT_OF_STAM;
-        }
-        if (t->current_hour == 2) {
-            printf("Наступило 02:00 — герой падает без сил!\n");
-            return MOVE_OUT_OF_STAM;
-        }
-        return MOVE_MAP_CHANGED;
+        return do_transition(m, h, t, 1);
     }
 
     if (target == CAVE_OUT) {
         printf("Вы выбираетесь на поверхность...\n");
-        h->gold += MAP_CHANGED_GOLD * m->level;
-        h->cur_stam -= MAP_CHANGED_STAM;
-        t->current_hour += 1;
-        m->level += 1;
-
-        free_map(m, h);
-        if (!generate_map(m, h)) {
-            fprintf(stderr, "Ошибка генерации леса.\n");
-            exit(1);
-        }
-        weather = generate_weather();
-        printf("Лес %dx%d. Погода: %s, %d°C, ветер %d.\n",
-            m->width, m->height,
-            weather_names[weather.type], weather.temperature, weather.wind_power);
-
-        if (h->cur_stam <= 0) {
-            printf("Выносливость на нуле — герой падает без сил!\n");
-            return MOVE_OUT_OF_STAM;
-        }
-        if (t->current_hour == 2) {
-            printf("Наступило 02:00 — герой падает без сил!\n");
-            return MOVE_OUT_OF_STAM;
-        }
-        return MOVE_MAP_CHANGED;
+        return do_transition(m, h, t, 0);
     }
 
     int step_cost = STEP_STAM;
@@ -824,7 +829,6 @@ void print_menu_time(void) {
         "3 - Отдых (Лечь спать)\n");
 }
 
-
 void adventure(Hero* h, Timing* t) {
     Map map = { 0 };
     map.level = 1;
@@ -847,11 +851,11 @@ void adventure(Hero* h, Timing* t) {
 
         int dx = 0, dy = 0;
         switch (cmd) {
-        case 'W': case 'w': case 'Ц': case 'ц': dy = -1; break;
-        case 'S': case 's': case 'Ы': case 'ы': dy = 1; break;
-        case 'A': case 'a': case 'Ф': case 'ф': dx = -1; break;
-        case 'D': case 'd': case 'В': case 'в': dx = 1; break;
-        case 'Q': case 'q': case 'Й': case 'й':
+        case 'W': case 'w': dy = -1; break;
+        case 'S': case 's': dy = 1;  break;
+        case 'A': case 'a': dx = -1; break;
+        case 'D': case 'd': dx = 1;  break;
+        case 'Q': case 'q':
             printf("Герой отправился домой.\n");
             map.level = 0;
             running = 0;
@@ -888,7 +892,6 @@ void adventure(Hero* h, Timing* t) {
 
     free_map(&map, h);
 }
-
 
 int main(void) {
     setlocale(LC_ALL, ".UTF-8");
