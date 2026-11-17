@@ -1,4 +1,3 @@
-
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #pragma warning(disable : 4996)
@@ -13,17 +12,10 @@
 #define MAX_NAME_LEN 32
 
 
-char items[MAX_ITEMS][MAX_NAME_LEN] = {
-    "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка",
-    "5 Ведро", "6 Удобрение", "7 Корзина", "8 Грабли", "9 Лопата"
-};
-
 typedef enum {
     MAP_FOREST = 0,
-    MAP_CAVE = 1,
+    MAP_CAVE = 1
 } Map_types;
-
-
 
 typedef enum {
     MOVE_BLOCKED,
@@ -38,68 +30,82 @@ typedef enum {
     MAP_CHANGED_GOLD = 10
 } Delta;
 
+
+typedef enum {
+    WEATHER_CLEAR = 0,
+    WEATHER_RAIN,
+    WEATHER_FOG,
+    WEATHER_HURRICANE
+} WeatherType;
+
 typedef struct {
-    int current_hour;
+    WeatherType type;
+    int         temperature;
+    int         wind_power;
+} Weather;
+
+
+typedef struct {
     int current_day;
+    int current_hour;
 } Timing;
-
-#define MIN_SIZE 5
-#define MAX_SIZE 30
-#define WALL    '#'
-#define EMPTY   '.'
-#define TREE    'T'
-#define ROCK    'R'
-#define HERO    '@'
-
-#define CAVE_IN   'O'
-#define CAVE_OUT  'X'
 
 typedef struct {
     char** grid;
-    int width;
-    int height;
-    int type;
-    int level;
+    int       width;
+    int       height;
+    Map_types type;
+    int       level;
 } Map;
 
 typedef struct Hero {
     char hero_name[MAX_NAME_LEN];
-    int cur_hp;
-    int max_hp;
-    int cur_stam;
-    int max_stam;
-    int gold;
-    int heroX;
-    int heroY;
+    int  cur_hp, max_hp;
+    int  cur_stam, max_stam;
+    int  gold;
+    int  heroX, heroY;
     char items[MAX_ITEMS][MAX_NAME_LEN];
 } Hero;
 
-Hero* hero = NULL;
-Timing timing = { .current_day = 1, .current_hour = 8 };
 
-void Your_Name(struct Hero* h) {
-    int er_inp_flag = 1;
-    while (er_inp_flag == 1) {
-        printf("Как Вас зовут?\n");
+Weather generate_weather(void);
+int     generate_map(Map* m, Hero* h);
+int     generate_cave(Map* m, Hero* h);
+int     place_hero(Map* m, Hero* h);
+int     place_symbol(Map* m, char symbol);
+int     alloc_grid(Map* m, int width, int height);
+void    free_map(Map* m, Hero* h);
+int     is_inside(const Map* m, int x, int y);
+MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy);
+void    print_map(const Map* m);
+void    print_hud(Hero* h, const Map* m, Timing* t);
+int     is_ready(Hero* h, Timing* t);
+void    adventure(Hero* h, Timing* t);
+void    create_hero(void);
+void    Your_Name(Hero* h);
+void    show_hero_card(Hero* h, Timing* t);
+void    show_time(Timing* t);
+int     hours_until_2am(Timing* t);
+void    wait_hours(Timing* t);
+void    sleep_hero(Hero* h, Timing* t);
+void    show_inventory(void);
+void    put_item(void);
+void    clean_slot(void);
+void    show_uniques(void);
+void    fill_defaults(void);
+void    read_items(void);
+void    find_item(void);
+void    free_supplies(void);
+void    write_diary(Hero* h, Timing* t);
+void    count_items(void);
+void    print_menu(Hero* h);
+void    print_menu_time(void);
 
-        int res = scanf("%31s", h->hero_name);
-        int c = getchar();
 
-        if (res != 1) {
-            printf("Ошибка ввода!\n");
-            while ((c = getchar()) != '\n' && c != EOF) {}
-        }
-        else if (c != '\n' && c != EOF && c != ' ' && c != '\t') {
-            printf("Ошибка ввода! Имя должно содержать не больше 32 символов!\n");
-            while ((c = getchar()) != '\n' && c != EOF) {}
-        }
-        else {
-            printf("Здравствуйте, %s!\n", h->hero_name);
-            er_inp_flag = 0;
-        }
-    }
-}
-
+char items[MAX_ITEMS][MAX_NAME_LEN] = {
+    "0 Пусто", "1 Дерево", "2 Камень", "3 Семена", "4 Лейка",
+    "5 Ведро", "6 Удобрение", "7 Корзина", "8 Грабли", "9 Лопата"
+};
 
 char item_names[MAX_ITEMS][MAX_NAME_LEN];
 char** supplies_names = NULL;
@@ -107,6 +113,37 @@ int* supplies_totals = NULL;
 int    supplies_count = 0;
 int    item_count = 0;
 int    inventory[INV_LEN] = { 0 };
+
+Hero* hero = NULL;
+Timing  timing = { .current_day = 1, .current_hour = 8 };
+Weather weather = { WEATHER_CLEAR, 20, 0 };
+
+const char* weather_names[] = { "Ясно", "Ливень", "Туман", "Ураган" };
+
+#define MIN_SIZE 5
+#define MAX_SIZE 30
+#define WALL     '#'
+#define EMPTY    '.'
+#define TREE     'T'
+#define ROCK     'R'
+#define HERO     '@'
+#define CAVE_IN  'O'
+#define CAVE_OUT 'X'
+
+void Your_Name(Hero* h) {
+    while (1) {
+        printf("Как Вас зовут?\n");
+        int res = scanf("%31s", h->hero_name);
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF) {}
+        if (res != 1) {
+            printf("Ошибка ввода!\n");
+            continue;
+        }
+        printf("Здравствуйте, %s!\n", h->hero_name);
+        return;
+    }
+}
 
 void create_hero(void) {
     if (hero != NULL) {
@@ -133,7 +170,6 @@ void create_hero(void) {
         return;
     }
 
-
     hero->cur_hp = 100;
     hero->max_hp = 100;
     hero->cur_stam = 50;
@@ -148,9 +184,15 @@ void create_hero(void) {
         hero->items[i][MAX_NAME_LEN - 1] = '\0';
     }
 
-    Your_Name(hero);
+    memset(inventory, 0, sizeof inventory);
+    timing.current_day = 1;
+    timing.current_hour = 8;
+    weather = generate_weather();
 
+    Your_Name(hero);
     printf("Персонаж создан по адресу %p\n", (void*)hero);
+    printf("Погода на старте: %s, %d°C, ветер %d.\n",
+        weather_names[weather.type], weather.temperature, weather.wind_power);
 }
 
 void show_hero_card(Hero* h, Timing* t) {
@@ -164,6 +206,8 @@ void show_hero_card(Hero* h, Timing* t) {
     printf("Стамина:  %d/%d\n", h->cur_stam, h->max_stam);
     printf("Золото:   %d\n", h->gold);
     printf("Время:    День %d, %02d:00\n", t->current_day, t->current_hour);
+    printf("Погода:   %s, %d°C, ветер %d\n",
+        weather_names[weather.type], weather.temperature, weather.wind_power);
     printf("Инвентарь:\n");
     for (int i = 0; i < INV_LEN; i++) {
         int id = inventory[i];
@@ -171,8 +215,38 @@ void show_hero_card(Hero* h, Timing* t) {
     }
 }
 
+
+Weather generate_weather(void) {
+    Weather w;
+    w.type = (WeatherType)(rand() % 4);
+
+    switch (w.type) {
+    case WEATHER_CLEAR:
+        w.temperature = 15 + rand() % 16;   /* 15..30 */
+        w.wind_power = rand() % 4;         /* 0..3   */
+        break;
+    case WEATHER_RAIN:
+        w.temperature = 5 + rand() % 11;    /* 5..15  */
+        w.wind_power = 3 + rand() % 5;     /* 3..7   */
+        break;
+    case WEATHER_FOG:
+        w.temperature = 0 + rand() % 11;    /* 0..10  */
+        w.wind_power = rand() % 3;         /* 0..2   */
+        break;
+    case WEATHER_HURRICANE:
+    default:
+        w.temperature = -5 + rand() % 11;   /* -5..5  */
+        w.wind_power = 7 + rand() % 4;     /* 7..10  */
+        break;
+    }
+    return w;
+}
+
+
 void show_time(Timing* t) {
     printf("Текущее время: День %d, %02d:00\n", t->current_day, t->current_hour);
+    printf("Погода: %s, %d°C, ветер %d\n",
+        weather_names[weather.type], weather.temperature, weather.wind_power);
 }
 
 int hours_until_2am(Timing* t) {
@@ -182,15 +256,15 @@ int hours_until_2am(Timing* t) {
     return 24 - now + 2;
 }
 
-void wait(Timing* t) {
+void wait_hours(Timing* t) {
     int max_wait = hours_until_2am(t);
     printf("Сейчас: День %d, %02d:00. До ближайших 02:00 можно ждать не больше %d ч.\n",
         t->current_day, t->current_hour, max_wait);
 
     int hours;
-    printf("Сколько часов ждать? ", max_wait);
+    printf("Сколько часов ждать? ");
     if (scanf_s("%d", &hours) != 1 || hours < 1 || hours > max_wait) {
-        printf("Ночью надо спать!\n", max_wait);
+        printf("Ночью надо спать!\n");
         int c; while ((c = getchar()) != '\n' && c != EOF) {}
         return;
     }
@@ -203,19 +277,23 @@ void wait(Timing* t) {
         hours, t->current_day, t->current_hour);
 }
 
-void sleep(Hero* h, Timing* t) {
+void sleep_hero(Hero* h, Timing* t) {
     if (!h) { printf("Сначала создайте персонажа.\n"); return; }
 
     t->current_day += 1;
     t->current_hour = 8;
-
     h->cur_hp = h->max_hp;
     h->cur_stam = h->max_stam;
+
+    weather = generate_weather();
+    printf("Новый день. Погода: %s, %d°C, ветер %d.\n",
+        weather_names[weather.type], weather.temperature, weather.wind_power);
 
     printf("Вы проспали до утра. День %d, %02d:00\n", t->current_day, t->current_hour);
     printf("HP: %d/%d, Стамина: %d/%d\n",
         h->cur_hp, h->max_hp, h->cur_stam, h->max_stam);
 }
+
 
 void show_inventory(void) {
     for (int i = 0; i < INV_LEN; i++) {
@@ -229,18 +307,15 @@ void put_item(void) {
     printf("Введите номер слота (от 0 до %d): ", INV_LEN - 1);
     if (scanf_s("%d", &num_slot) != 1) {
         printf("Ошибка ввода!\n");
-        int c;
-        while ((c = getchar()) != '\n' && c != EOF) {}
+        int c; while ((c = getchar()) != '\n' && c != EOF) {}
         return;
     }
     printf("Введите ID предмета: ");
     if (scanf_s("%d", &item_id) != 1) {
         printf("Ошибка ввода!\n");
-        int c;
-        while ((c = getchar()) != '\n' && c != EOF) {}
+        int c; while ((c = getchar()) != '\n' && c != EOF) {}
         return;
     }
-
     if (num_slot < 0 || num_slot >= INV_LEN) {
         printf("Ошибка: нет такого слота! (допустимо 0..%d)\n", INV_LEN - 1);
         return;
@@ -249,7 +324,6 @@ void put_item(void) {
         printf("Ошибка: нет такого ID! (допустимо 0..%d)\n", MAX_ITEMS - 1);
         return;
     }
-
     inventory[num_slot] = item_id;
     printf("В слот %d записан предмет [%d] (%s)\n",
         num_slot, item_id, item_names[item_id] + 2);
@@ -260,8 +334,7 @@ void clean_slot(void) {
     printf("Введите номер слота: ");
     if (scanf_s("%d", &num_slot_null) != 1) {
         printf("Ошибка ввода!\n");
-        int c;
-        while ((c = getchar()) != '\n' && c != EOF) {}
+        int c; while ((c = getchar()) != '\n' && c != EOF) {}
         return;
     }
     if (num_slot_null < 0 || num_slot_null >= INV_LEN) {
@@ -292,7 +365,6 @@ void show_uniques(void) {
             printf("ID %d (%s) - не уникален, лежит в %d слотах\n",
                 id, item_names[id] + 2, cnt);
     }
-
     if (!any) printf("В инвентаре нет предметов.\n");
 }
 
@@ -311,32 +383,23 @@ void read_items(void) {
         fill_defaults();
         return;
     }
-
-
-    int n = 0;
-    item_count = n;
-    if (item_count < MAX_ITEMS) {
-        for (int i = item_count; i < MAX_ITEMS; i++) {
-            strncpy(item_names[i], items[i], MAX_NAME_LEN - 1);
-            item_names[i][MAX_NAME_LEN - 1] = '\0';
-        }
-        item_count = MAX_ITEMS;
+    item_count = MAX_ITEMS;
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        strncpy(item_names[i], items[i], MAX_NAME_LEN - 1);
+        item_names[i][MAX_NAME_LEN - 1] = '\0';
     }
     fclose(fp);
 }
 
 void find_item(void) {
     char hero_find[MAX_NAME_LEN];
-
     printf("Что Вы ищете?\n");
     if (scanf("%31s", hero_find) != 1) {
         printf("Ошибка ввода!\n");
-        int c;
-        while ((c = getchar()) != '\n' && c != EOF) {}
+        int c; while ((c = getchar()) != '\n' && c != EOF) {}
         return;
     }
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF) {}
+    int c; while ((c = getchar()) != '\n' && c != EOF) {}
 
     int found_id = -1;
     for (int i = 0; i < item_count; i++) {
@@ -349,7 +412,6 @@ void find_item(void) {
         printf("Предмет \"%s\" не найден в каталоге.\n", hero_find);
         return;
     }
-
     int found_any = 0;
     for (int slot = 0; slot < INV_LEN; slot++) {
         if (inventory[slot] == found_id) {
@@ -363,7 +425,6 @@ void find_item(void) {
             hero_find, found_id);
 }
 
-
 void free_supplies(void) {
     if (supplies_names) {
         for (int i = 0; i < supplies_count; i++)
@@ -376,19 +437,19 @@ void free_supplies(void) {
     supplies_count = 0;
 }
 
-void write_diary(struct Hero* h, Timing* t) {
+void write_diary(Hero* h, Timing* t) {
     printf("Введите запись: ");
     char hero_routine[256];
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF) {}
+    int c; while ((c = getchar()) != '\n' && c != EOF) {}
     if (!fgets(hero_routine, sizeof hero_routine, stdin)) return;
     hero_routine[strcspn(hero_routine, "\n")] = '\0';
 
     FILE* fp = fopen("diary.txt", "a");
     if (!fp) { printf("Ошибка открытия файла.\n"); return; }
 
-    fprintf(fp, "Фермер: %s\nТекущее время: День %d, %02d:00\nСписок предметов в инвентаре:\n",
-        h->hero_name, t->current_day, t->current_hour);
+    fprintf(fp, "Фермер: %s\nТекущее время: День %d, %02d:00\nПогода: %s, %d°C, ветер %d\nСписок предметов в инвентаре:\n",
+        h->hero_name, t->current_day, t->current_hour,
+        weather_names[weather.type], weather.temperature, weather.wind_power);
     for (int i = 0; i < 10; i++)
         fprintf(fp, "%s ", items[i] + 2);
     fprintf(fp, "\nЗаметка:\n%s\n", hero_routine);
@@ -402,10 +463,7 @@ void count_items(void) {
     free_supplies();
 
     FILE* fp = fopen("input.txt", "r");
-    if (!fp) {
-        printf("Ошибка: файл input.txt не найден.\n");
-        return;
-    }
+    if (!fp) { printf("Ошибка: файл input.txt не найден.\n"); return; }
 
     char buf[1024];
     while (fgets(buf, sizeof buf, fp)) {
@@ -418,7 +476,6 @@ void count_items(void) {
         for (int k = 0; k < supplies_count; k++) {
             if (strcmp(supplies_names[k], name) == 0) { found = k; break; }
         }
-
         if (found >= 0) {
             supplies_totals[found] += cnt;
         }
@@ -459,10 +516,7 @@ void count_items(void) {
     }
 
     FILE* out = fopen("output.txt", "w");
-    if (!out) {
-        printf("Ошибка открытия output.txt на запись.\n");
-        return;
-    }
+    if (!out) { printf("Ошибка открытия output.txt на запись.\n"); return; }
     for (int i = 0; i < supplies_count; i++) {
         fprintf(out, "%s: %d шт.\n", supplies_names[i], supplies_totals[i]);
         printf("%s: %d шт.\n", supplies_names[i], supplies_totals[i]);
@@ -477,13 +531,14 @@ int is_inside(const Map* m, int x, int y) {
         y > 0 && y < m->height - 1;
 }
 
-void free_map(Map* m, struct Hero* h) {
+void free_map(Map* m, Hero* h) {
     if (!m->grid) return;
     for (int i = 0; i < m->height; i++) free(m->grid[i]);
     free(m->grid);
     m->grid = NULL;
-    m->width = m->height = 0;
-    h->heroX = h->heroY = 0;
+    m->width = 0;
+    m->height = 0;
+    if (h) h->heroX = h->heroY = 0;
 }
 
 int alloc_grid(Map* m, int width, int height) {
@@ -505,7 +560,8 @@ int alloc_grid(Map* m, int width, int height) {
     return 1;
 }
 
-int place_hero(Map* m, struct Hero* h) {
+int place_hero(Map* m, Hero* h) {
+    if (!h) return 0;
     for (int tries = 0; tries < 1000; tries++) {
         int x = 1 + rand() % (m->width - 2);
         int y = 1 + rand() % (m->height - 2);
@@ -531,7 +587,7 @@ int place_symbol(Map* m, char symbol) {
     return 0;
 }
 
-int generate_map(Map* m, struct Hero* h) {
+int generate_map(Map* m, Hero* h) {
     int width = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
     int height = MIN_SIZE + rand() % (MAX_SIZE - MIN_SIZE + 1);
 
@@ -539,12 +595,10 @@ int generate_map(Map* m, struct Hero* h) {
     m->type = MAP_FOREST;
 
     int obstacle_percent = 15 + rand() % 16;
-
     for (int y = 0; y < m->height; y++) {
         for (int x = 0; x < m->width; x++) {
-            if (x == 0 || y == 0 || x == m->width - 1 || y == m->height - 1) {
+            if (x == 0 || y == 0 || x == m->width - 1 || y == m->height - 1)
                 m->grid[y][x] = WALL;
-            }
             else {
                 int r = rand() % 100;
                 if (r < obstacle_percent)
@@ -556,16 +610,14 @@ int generate_map(Map* m, struct Hero* h) {
     }
 
     if (!place_hero(m, h)) {
-        h->heroX = 1; h->heroY = 1;
+        if (h) { h->heroX = 1; h->heroY = 1; }
         m->grid[1][1] = HERO;
     }
-
     place_symbol(m, CAVE_IN);
-
     return 1;
 }
 
-int generate_cave(Map* m, struct Hero* h) {
+int generate_cave(Map* m, Hero* h) {
     int width = 5 + rand() % 4;
     int height = 5 + rand() % 4;
 
@@ -573,12 +625,10 @@ int generate_cave(Map* m, struct Hero* h) {
     m->type = MAP_CAVE;
 
     int obstacle_percent = 20 + rand() % 21;
-
     for (int y = 0; y < m->height; y++) {
         for (int x = 0; x < m->width; x++) {
-            if (x == 0 || y == 0 || x == m->width - 1 || y == m->height - 1) {
+            if (x == 0 || y == 0 || x == m->width - 1 || y == m->height - 1)
                 m->grid[y][x] = WALL;
-            }
             else {
                 int r = rand() % 100;
                 if (r < obstacle_percent)
@@ -590,12 +640,10 @@ int generate_cave(Map* m, struct Hero* h) {
     }
 
     if (!place_hero(m, h)) {
-        h->heroX = 1; h->heroY = 1;
+        if (h) { h->heroX = 1; h->heroY = 1; }
         m->grid[1][1] = HERO;
     }
-
     place_symbol(m, CAVE_OUT);
-
     return 1;
 }
 
@@ -622,18 +670,64 @@ MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy) {
         return MOVE_BLOCKED;
     }
 
+    if (weather.type == WEATHER_HURRICANE && (rand() % 100) < 20) {
+        int dirs[4][2] = { {1,0}, {-1,0}, {0,1}, {0,-1} };
+        int start = rand() % 4;
+        int blown = 0;
+        for (int k = 0; k < 4; k++) {
+            int ddx = dirs[(start + k) % 4][0];
+            int ddy = dirs[(start + k) % 4][1];
+            int bx = h->heroX + ddx;
+            int by = h->heroY + ddy;
+            if (!is_inside(m, bx, by)) continue;
+            if (m->grid[by][bx] != EMPTY) continue;
+
+            m->grid[h->heroY][h->heroX] = EMPTY;
+            h->heroX = bx;
+            h->heroY = by;
+            m->grid[by][bx] = HERO;
+            blown = 1;
+            break;
+        }
+
+        h->cur_stam -= STEP_STAM;
+        if (blown)
+            printf("Ураган! Героя сдуло на (%d, %d).\n", h->heroX, h->heroY);
+        else
+            printf("Ураган! Герой не удержался на ногах, но вокруг всё занято.\n");
+
+        if (h->cur_stam <= 0) {
+            printf("Выносливость на нуле — герой падает без сил!\n");
+            return MOVE_OUT_OF_STAM;
+        }
+        return MOVE_OK;
+    }
+
     if (target == CAVE_IN) {
         printf("Вы спускаетесь в пещеру...\n");
         h->gold += MAP_CHANGED_GOLD * m->level;
         h->cur_stam -= MAP_CHANGED_STAM;
         t->current_hour += 1;
         m->level += 1;
+
         free_map(m, h);
         if (!generate_cave(m, h)) {
             fprintf(stderr, "Ошибка генерации пещеры.\n");
             exit(1);
         }
-        printf("Пещера %dx%d:\n", m->width, m->height);
+        weather = generate_weather();
+        printf("Пещера %dx%d. Погода: %s, %d°C, ветер %d.\n",
+            m->width, m->height,
+            weather_names[weather.type], weather.temperature, weather.wind_power);
+
+        if (h->cur_stam <= 0) {
+            printf("Выносливость на нуле — герой падает без сил!\n");
+            return MOVE_OUT_OF_STAM;
+        }
+        if (t->current_hour == 2) {
+            printf("Наступило 02:00 — герой падает без сил!\n");
+            return MOVE_OUT_OF_STAM;
+        }
         return MOVE_MAP_CHANGED;
     }
 
@@ -643,54 +737,69 @@ MoveResult try_move(Map* m, Hero* h, Timing* t, int dx, int dy) {
         h->cur_stam -= MAP_CHANGED_STAM;
         t->current_hour += 1;
         m->level += 1;
+
         free_map(m, h);
         if (!generate_map(m, h)) {
             fprintf(stderr, "Ошибка генерации леса.\n");
             exit(1);
         }
-        printf("Лес %dx%d:\n", m->width, m->height);
+        weather = generate_weather();
+        printf("Лес %dx%d. Погода: %s, %d°C, ветер %d.\n",
+            m->width, m->height,
+            weather_names[weather.type], weather.temperature, weather.wind_power);
+
+        if (h->cur_stam <= 0) {
+            printf("Выносливость на нуле — герой падает без сил!\n");
+            return MOVE_OUT_OF_STAM;
+        }
+        if (t->current_hour == 2) {
+            printf("Наступило 02:00 — герой падает без сил!\n");
+            return MOVE_OUT_OF_STAM;
+        }
         return MOVE_MAP_CHANGED;
+    }
+
+    int step_cost = STEP_STAM;
+    if (weather.type == WEATHER_RAIN) {
+        step_cost *= 2;
+        printf("Ливень: шаг стоит вдвое дороже (%d стамины).\n", step_cost);
     }
 
     m->grid[h->heroY][h->heroX] = EMPTY;
     h->heroX = nx;
     h->heroY = ny;
-    h->cur_stam -= STEP_STAM;
+    h->cur_stam -= step_cost;
     m->grid[ny][nx] = HERO;
 
     printf("Герой шагнул на (%d, %d).\n", nx, ny);
 
-    if (h->cur_stam < 1) {
-        printf("Выносливость на нуле — герой отправляется домой.\n");
-        return MOVE_OUT_OF_STAM;
-    }
-
-    if (t->current_hour == 2) {
-        printf("Наступило 02:00 — пора спать!\n");
+    if (h->cur_stam <= 0) {
+        printf("Выносливость на нуле — герой падает без сил!\n");
         return MOVE_OUT_OF_STAM;
     }
     return MOVE_OK;
 }
 
 int is_ready(Hero* h, Timing* t) {
-    return ((h) && (h->cur_stam > 0) && (t->current_hour < 2 || t->current_hour >= 8));
+    if (!h || !t) return 0;
+    return h->cur_stam > 0
+        && (t->current_hour < 2 || t->current_hour >= 8);
 }
 
 void print_hud(Hero* h, const Map* m, Timing* t) {
     if (!h) return;
-    printf("HP: %d/%d | Выносливость: %d/%d | Золото: %d | Уровень: %d | Время: %02d:00\n",
+    printf("HP: %d/%d | Выносливость: %d/%d | Золото: %d | Этаж: %d | Время: %02d:00 | Погода: %s, %d°C, ветер %d\n",
         h->cur_hp, h->max_hp,
         h->cur_stam, h->max_stam,
         h->gold,
         m->level,
-        t->current_hour);
+        t->current_hour,
+        weather_names[weather.type], weather.temperature, weather.wind_power);
 }
 
 void print_menu(Hero* h) {
-    if (h)
-        printf("\nГерой: %s\n", h->hero_name);
-    else
-        printf("\nГерой: не создан\n");
+    if (h) printf("\nГерой: %s\n", h->hero_name);
+    else   printf("\nГерой: не создан\n");
 
     printf(
         "0  - Выход\n"
@@ -707,21 +816,87 @@ void print_menu(Hero* h) {
         "11 - Отправиться в приключение\n");
 }
 
-void print_menu_time() {
-    printf("0 - Назад\n"
+void print_menu_time(void) {
+    printf("\n--- Время и отдых ---\n"
+        "0 - Назад\n"
         "1 - Посмотреть на часы\n"
         "2 - Пропустить время (Ждать)\n"
         "3 - Отдых (Лечь спать)\n");
 }
 
-int main(void)
-{
+
+void adventure(Hero* h, Timing* t) {
+    Map map = { 0 };
+    map.level = 1;
+    map.type = MAP_FOREST;
+
+    if (!generate_map(&map, h)) {
+        fprintf(stderr, "Ошибка выделения памяти.\n");
+        return;
+    }
+
+    printf("Сгенерирован лес %dx%d\n", map.width, map.height);
+    print_hud(h, &map, t);
+    print_map(&map);
+
+    int running = 1;
+    while (running) {
+        printf("Направление (W/A/S/D, Q - выйти): ");
+        char cmd;
+        if (scanf(" %c", &cmd) != 1) break;
+
+        int dx = 0, dy = 0;
+        switch (cmd) {
+        case 'W': case 'w': case 'Ц': case 'ц': dy = -1; break;
+        case 'S': case 's': case 'Ы': case 'ы': dy = 1; break;
+        case 'A': case 'a': case 'Ф': case 'ф': dx = -1; break;
+        case 'D': case 'd': case 'В': case 'в': dx = 1; break;
+        case 'Q': case 'q': case 'Й': case 'й':
+            printf("Герой отправился домой.\n");
+            map.level = 0;
+            running = 0;
+            continue;
+        default:
+            printf("Неизвестная команда.\n");
+            continue;
+        }
+
+        MoveResult r = try_move(&map, h, t, dx, dy);
+
+        putchar('\n');
+        print_hud(h, &map, t);
+        print_map(&map);
+
+        switch (r) {
+        case MOVE_OUT_OF_STAM:
+            printf("Обморок! Спасатели доставили героя домой, забрав половину золота.\n");
+            h->gold /= 2;
+            map.level = 0;
+            free_map(&map, h);
+            running = 0;
+            break;
+        case MOVE_MAP_CHANGED:
+            if (map.type == MAP_CAVE) printf("[Вы в пещере]\n");
+            else                      printf("[Вы в лесу]\n");
+            break;
+        case MOVE_OK:
+        case MOVE_BLOCKED:
+        default:
+            break;
+        }
+    }
+
+    free_map(&map, h);
+}
+
+
+int main(void) {
     setlocale(LC_ALL, ".UTF-8");
     SetConsoleCP(65001);
     SetConsoleOutputCP(65001);
 
-    Map map = { 0 };
-    map.level = 1;
+    srand((unsigned)time(NULL));
+    weather = generate_weather();
 
     read_items();
 
@@ -729,15 +904,13 @@ int main(void)
         printf("%s\n", item_names[i]);
 
     int iters = 1;
-    while (iters == 1) {
+    while (iters) {
         print_menu(hero);
 
         int us_inp;
-
-        if ((scanf_s("%d", &us_inp) != 1) || (us_inp > 11) || (us_inp < 0)) {
+        if ((scanf_s("%d", &us_inp) != 1) || us_inp < 0 || us_inp > 11) {
             printf("Ошибка ввода, попробуйте ещё раз!\n");
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF) {}
+            int c; while ((c = getchar()) != '\n' && c != EOF) {}
             continue;
         }
 
@@ -745,159 +918,96 @@ int main(void)
         case 0:
             printf("0 - Выход\n");
             free_supplies();
+            if (hero) { free(hero); hero = NULL; }
             iters = 0;
-            return 0;
+            break;
+
         case 1:
             printf("1 - Создать/пересоздать персонажа\n");
             create_hero();
             break;
+
         case 2:
             printf("2 - Карточка персонажа\n");
             show_hero_card(hero, &timing);
             break;
-        case 3:
+
+        case 3: {
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
-            print_menu_time();
-            int us_inp_time;
 
-            if ((scanf_s("%d", &us_inp_time) != 1) || (us_inp_time > 3) || (us_inp_time < 0)) {
-                printf("Ошибка ввода, попробуйте ещё раз!\n");
-                int c;
-                while ((c = getchar()) != '\n' && c != EOF) {}
-                continue;
-            }
-
-            switch (us_inp_time) {
-            case 0: {
-                printf("0 - Назад\n");
-                break;
-            }
-            case 1: {
-                printf("1 - Посмотреть на часы\n");
-                show_time(&timing);
-                break;
-            }
-            case 2: {
-                printf("2 - Пропустить время (ждать)\n");
-                wait(&timing);
-                break;
-            }
-            case 3: {
-                printf("3 - Отдых (лечь спать)\n");
-                sleep(hero, &timing);
-                break;
-            }
+            int in_time = 1;
+            while (in_time) {
+                print_menu_time();
+                int choice;
+                if (scanf_s("%d", &choice) != 1 || choice < 0 || choice > 3) {
+                    printf("Ошибка ввода.\n");
+                    int c; while ((c = getchar()) != '\n' && c != EOF) {}
+                    continue;
+                }
+                switch (choice) {
+                case 0: in_time = 0; break;
+                case 1: show_time(&timing); break;
+                case 2: wait_hours(&timing); break;
+                case 3: sleep_hero(hero, &timing); break;
+                }
             }
             break;
-        case 4: {
+        }
+
+        case 4:
             printf("4 - Посмотреть инвентарь\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             show_inventory();
             break;
-        }
+
         case 5:
             printf("5 - Положить предмет в слот\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             put_item();
             break;
-        case 6: {
+
+        case 6:
             printf("6 - Выбросить предмет\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             clean_slot();
             break;
-        }
-        case 7: {
+
+        case 7:
             printf("7 - Уникальные находки\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             show_uniques();
             break;
-        }
-        case 8: {
-            printf("8 - Поиск предмета в рюкзаке по названию\n");
+
+        case 8:
+            printf("8 - Поиск предмета по названию\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             find_item();
             break;
-        }
-        case 9: {
-            printf("9 - Записать состояние в дневник фермера\n");
+
+        case 9:
+            printf("9 - Записать в дневник\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             write_diary(hero, &timing);
             break;
-        }
-        case 10: {
+
+        case 10:
             printf("10 - Расшифровать старые записи\n");
             if (!hero) { printf("Сначала создайте персонажа.\n"); break; }
             count_items();
             break;
-        }
-        case 11: {
-            printf("11 - Отправиться в приключение\n");
 
+        case 11:
+            printf("11 - Отправиться в приключение\n");
             if (!is_ready(hero, &timing)) {
                 printf("Персонаж не готов к приключениям!\n");
                 break;
             }
-
-            srand((unsigned)time(NULL));
-
-            if (!generate_map(&map, hero)) {
-                fprintf(stderr, "Ошибка выделения памяти.\n");
-                break;
-            }
-
-            printf("Сгенерирован лес %dx%d\n", map.width, map.height);
-            print_hud(hero, &map, &timing);
-            print_map(&map);
-
-            int running = 1;
-            while (running) {
-                printf("Направление (W/A/S/D, Q - выйти): ");
-                char cmd;
-                if (scanf(" %c", &cmd) != 1) break;
-
-                int dx = 0, dy = 0;
-                switch (cmd) {
-                case 'W': case 'w': case 'Ц': case 'ц': dy = -1; break;
-                case 'S': case 's': case 'Ы': case 'ы': dy = 1; break;
-                case 'A': case 'a': case 'Ф': case 'ф': dx = -1; break;
-                case 'D': case 'd': case 'В': case 'в': dx = 1; break;
-                case 'Q': case 'q': case 'Й': case 'й':
-                    printf("Герой отправился домой.\n");
-                    map.level = 0;
-                    running = 0;
-                    continue;
-                default:
-                    printf("Неизвестная команда.\n");
-                    continue;
-                }
-
-                MoveResult r = try_move(&map, hero, &timing, dx, dy);
-
-                putchar('\n');
-                print_hud(hero, &map, &timing);
-                print_map(&map);
-
-                switch (r) {
-                case MOVE_OUT_OF_STAM:
-                    printf("Герой отправился домой (нет выносливости).\n");
-                    map.level = 0;
-                    hero->gold = hero->gold / 2;
-                    running = 0;
-                    break;
-                case MOVE_MAP_CHANGED:
-                    if (map.type == MAP_CAVE) printf("[Вы в пещере]\n");
-                    else                       printf("[Вы в лесу]\n");
-                    break;
-                case MOVE_OK:
-                case MOVE_BLOCKED:
-                default:
-                    break;
-                }
-            }
-            free_map(&map, hero);
+            adventure(hero, &timing);
             break;
         }
-        }
     }
+
+    if (hero) { free(hero); hero = NULL; }
+    free_supplies();
     return 0;
 }
